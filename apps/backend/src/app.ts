@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import path from 'path';
+import fs from 'fs';
 import { createBullBoard } from '@bull-board/api';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { ExpressAdapter } from '@bull-board/express';
@@ -92,6 +94,21 @@ export const createApp = () => {
   app.get('/health', handleHealthCheck);
   app.get('/api/health', handleHealthCheck);
 
+  // Root API status endpoint
+  app.get('/', (req: express.Request, res: express.Response) => {
+    res.json({
+      name: 'ReachInbox Email Scheduler API',
+      status: 'active',
+      version: '1.0.0',
+      endpoints: {
+        health: '/api/health',
+        auth: '/api/auth/me',
+        queues: '/admin/queues',
+        emails: '/api/emails/scheduled',
+      },
+    });
+  });
+
   // API Routes
   app.use('/api/auth', authRouter);
   app.use('/api/emails', emailsRouter);
@@ -99,6 +116,18 @@ export const createApp = () => {
   app.use('/api/senders', sendersRouter);
   app.use('/api/slack', slackRouter);
   app.use('/api/admin', adminRouter);
+
+  // Frontend static build fallback if apps/frontend/dist exists
+  const frontendDistPath = path.resolve(__dirname, '../../frontend/dist');
+  if (fs.existsSync(frontendDistPath)) {
+    app.use(express.static(frontendDistPath));
+    app.get('*', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      if (req.path.startsWith('/api') || req.path.startsWith('/admin')) {
+        return next();
+      }
+      res.sendFile(path.join(frontendDistPath, 'index.html'));
+    });
+  }
 
   // Centralized Error Handler
   app.use(errorHandler);

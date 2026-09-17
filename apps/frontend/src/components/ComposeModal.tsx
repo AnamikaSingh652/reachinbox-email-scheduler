@@ -128,9 +128,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({ isOpen, onClose, onS
         return;
       }
 
-      const res = await apiClient.post('/emails/schedule', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const res = await apiClient.post('/emails/schedule', formData);
 
       toast.success(`${res.data.scheduledCount} email(s) scheduled successfully!`);
       reset();

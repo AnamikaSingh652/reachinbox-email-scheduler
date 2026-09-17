@@ -19,7 +19,7 @@ const scheduleEmailSchema = z.object({
   startTime: z.string().optional(),
   delayBetweenEmails: z.string().or(z.number()).transform(Number).default(2000),
   hourlyLimit: z.string().or(z.number()).transform(Number).default(200),
-  recipients: z.array(z.string()).optional(),
+  recipients: z.union([z.array(z.string()), z.string()]).optional(),
 });
 
 // POST /api/emails/schedule - Single / Bulk Schedule Endpoint
@@ -38,10 +38,14 @@ router.post(
       recipientList = parseResult.validEmails;
       invalidCount = parseResult.invalidEmails.length;
     } else if (req.body.recipients) {
-      const raw = typeof req.body.recipients === 'string' 
-        ? JSON.parse(req.body.recipients) 
-        : req.body.recipients;
-      recipientList = Array.isArray(raw) ? raw : [raw];
+      try {
+        const raw = typeof req.body.recipients === 'string' 
+          ? JSON.parse(req.body.recipients) 
+          : req.body.recipients;
+        recipientList = Array.isArray(raw) ? raw : [raw];
+      } catch {
+        recipientList = typeof req.body.recipients === 'string' ? [req.body.recipients] : [];
+      }
     }
 
     const body = scheduleEmailSchema.parse(req.body);
@@ -64,7 +68,8 @@ router.post(
       return;
     }
 
-    const startDateTime = body.startTime ? new Date(body.startTime) : new Date();
+    const parsedTime = body.startTime ? new Date(body.startTime).getTime() : NaN;
+    const startDateTime = (!isNaN(parsedTime) && parsedTime > 0) ? new Date(parsedTime) : new Date();
     const startTimeMs = Math.max(Date.now(), startDateTime.getTime());
 
     // 2. Create EmailCampaign record
