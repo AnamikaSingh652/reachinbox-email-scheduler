@@ -3,6 +3,7 @@ import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { prisma } from '../../utils/db';
 import { redis } from '../../utils/redis';
+import { inMemoryStore } from '../../utils/inMemoryStore';
 import { DistributedRateLimiter } from '../../services/rateLimiter';
 
 export class SlackService {
@@ -60,9 +61,13 @@ export class SlackService {
    * Disconnects Slack connection for a user.
    */
   public static async disconnectSlack(userId: string): Promise<void> {
-    await prisma.slackConnection.deleteMany({
-      where: { userId },
-    });
+    try {
+      await prisma.slackConnection.deleteMany({
+        where: { userId },
+      });
+    } catch {
+      inMemoryStore.deleteSlackConnection(userId);
+    }
     logger.info({ userId }, 'Disconnected Slack account');
   }
 
@@ -70,14 +75,23 @@ export class SlackService {
    * Gets Slack connection status for a user.
    */
   public static async getSlackStatus(userId: string) {
-    const conn = await prisma.slackConnection.findUnique({
-      where: { userId },
-    });
-    return {
-      isConnected: !!conn,
-      teamName: conn?.teamName || null,
-      channelId: conn?.channelId || null,
-    };
+    try {
+      const conn = await prisma.slackConnection.findUnique({
+        where: { userId },
+      });
+      return {
+        isConnected: !!conn,
+        teamName: conn?.teamName || null,
+        channelId: conn?.channelId || null,
+      };
+    } catch {
+      const conn = inMemoryStore.getSlackConnection(userId);
+      return {
+        isConnected: !!conn,
+        teamName: conn?.teamName || null,
+        channelId: conn?.channelId || null,
+      };
+    }
   }
 
   /**

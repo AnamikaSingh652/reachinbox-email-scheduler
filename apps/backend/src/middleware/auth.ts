@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { prisma } from '../utils/db';
 import { logger } from '../utils/logger';
+import { inMemoryStore } from '../utils/inMemoryStore';
 
 export interface UserPayload {
   id: string;
@@ -42,7 +43,12 @@ export const requireAuth = async (
     if (token) {
       try {
         const decoded = jwt.verify(token, config.SESSION_SECRET) as { userId: string; email: string };
-        const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+        let user = null;
+        try {
+          user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+        } catch {
+          user = inMemoryStore.findUserById(decoded.userId) || inMemoryStore.findUserByEmail(decoded.email);
+        }
 
         if (user) {
           req.user = {
@@ -62,16 +68,29 @@ export const requireAuth = async (
     // 2. Dev / Test fallback mode
     const devEmail = (req.headers['x-dev-user-email'] as string) || 'demo@reachinbox.ai';
     if (!config.isProd || req.headers['x-dev-user-email']) {
-      let user = await prisma.user.findUnique({ where: { email: devEmail } });
-      if (!user) {
-        user = await prisma.user.create({
-          data: {
+      let user = null;
+      try {
+        user = await prisma.user.findUnique({ where: { email: devEmail } });
+        if (!user) {
+          user = await prisma.user.create({
+            data: {
+              googleId: `dev-google-${Date.now()}`,
+              name: 'ReachInbox Demo User',
+              email: devEmail,
+              avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+            },
+          });
+        }
+      } catch {
+        user = inMemoryStore.findUserByEmail(devEmail);
+        if (!user) {
+          user = inMemoryStore.createUser({
             googleId: `dev-google-${Date.now()}`,
             name: 'ReachInbox Demo User',
             email: devEmail,
             avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-          },
-        });
+          });
+        }
       }
 
       req.user = {

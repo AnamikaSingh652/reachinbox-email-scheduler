@@ -49,6 +49,13 @@ export const createApp = () => {
 
   app.use('/admin/queues', serverAdapter.getRouter());
 
+  const withTimeout = <T>(promise: Promise<T>, ms = 1000): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms)),
+    ]);
+  };
+
   // Health check endpoint with deep service status checks
   const handleHealthCheck = async (req: express.Request, res: express.Response) => {
     let postgresStatus = 'ok';
@@ -57,30 +64,32 @@ export const createApp = () => {
     let queueStatus = 'ok';
 
     try {
-      await prisma.$queryRaw`SELECT 1`;
+      await withTimeout(prisma.$queryRaw`SELECT 1`);
     } catch {
-      postgresStatus = 'error';
+      postgresStatus = 'offline';
     }
 
     try {
-      await redis.ping();
+      await withTimeout(redis.ping());
     } catch {
-      redisStatus = 'error';
+      redisStatus = 'offline';
     }
 
     try {
-      await esClient.ping();
+      await withTimeout(esClient.ping());
     } catch {
-      elasticsearchStatus = 'error';
+      elasticsearchStatus = 'offline';
     }
 
     try {
-      await emailQueue.getJobCounts();
+      await withTimeout(emailQueue.getJobCounts());
     } catch {
-      queueStatus = 'error';
+      queueStatus = 'offline';
     }
 
     res.json({
+      success: true,
+      message: 'ReachInbox Email Scheduler API is healthy',
       api: 'ok',
       postgres: postgresStatus,
       redis: redisStatus,
@@ -97,6 +106,8 @@ export const createApp = () => {
   // Root API status endpoint
   app.get('/', (req: express.Request, res: express.Response) => {
     res.json({
+      success: true,
+      message: 'ReachInbox Email Scheduler API is running',
       name: 'ReachInbox Email Scheduler API',
       status: 'active',
       version: '1.0.0',

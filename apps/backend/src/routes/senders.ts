@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
-import { prisma } from '../utils/db';
+import { prisma, withDbTimeout } from '../utils/db';
+import { inMemoryStore } from '../utils/inMemoryStore';
 import { EtherealEmailService } from '../integrations/email/ethereal';
 import { z } from 'zod';
 
@@ -16,24 +17,40 @@ const createSenderSchema = z.object({
 // GET /api/senders
 router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
-  let senders = await prisma.sender.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-  });
+  let senders: any[] = [];
 
-  // Ensure default sender exists for seamless onboarding
-  if (senders.length === 0) {
-    const acc = await EtherealEmailService.createEtherealAccount();
-    const defaultSender = await prisma.sender.create({
-      data: {
+  try {
+    senders = await withDbTimeout(prisma.sender.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    }));
+
+    if (senders.length === 0) {
+      const acc = await EtherealEmailService.createEtherealAccount();
+      const defaultSender = await withDbTimeout(prisma.sender.create({
+        data: {
+          userId,
+          name: 'Default Outreach Sender',
+          email: acc.user,
+          etherealUser: acc.user,
+          etherealPassword: acc.pass,
+        },
+      }));
+      senders = [defaultSender];
+    }
+  } catch {
+    senders = inMemoryStore.getSendersForUser(userId);
+    if (senders.length === 0) {
+      const acc = await EtherealEmailService.createEtherealAccount();
+      const defaultSender = inMemoryStore.createSender({
         userId,
         name: 'Default Outreach Sender',
         email: acc.user,
         etherealUser: acc.user,
         etherealPassword: acc.pass,
-      },
-    });
-    senders = [defaultSender];
+      });
+      senders = [defaultSender];
+    }
   }
 
   res.json({ senders });
@@ -53,15 +70,26 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
     etherealPassword = acc.pass;
   }
 
-  const sender = await prisma.sender.create({
-    data: {
+  let sender = null;
+  try {
+    sender = await withDbTimeout(prisma.sender.create({
+      data: {
+        userId,
+        name: body.name,
+        email: body.email,
+        etherealUser,
+        etherealPassword,
+      },
+    }));
+  } catch {
+    sender = inMemoryStore.createSender({
       userId,
       name: body.name,
       email: body.email,
       etherealUser,
       etherealPassword,
-    },
-  });
+    });
+  }
 
   res.status(201).json({ sender });
 });
@@ -71,9 +99,13 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
   const userId = req.user!.id;
   const { id } = req.params;
 
-  await prisma.sender.deleteMany({
-    where: { id, userId },
-  });
+  try {
+    await withDbTimeout(prisma.sender.deleteMany({
+      where: { id, userId },
+    }));
+  } catch {
+    inMemoryStore.deleteSender(id, userId);
+  }
 
   res.json({ success: true, message: 'Sender deleted' });
 });

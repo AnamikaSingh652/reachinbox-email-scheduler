@@ -7,35 +7,43 @@ import { QueueRecoveryService } from './services/recovery';
 
 const app = createApp();
 
-const startServer = async () => {
-  try {
-    // Initialize Elasticsearch index
-    await ElasticsearchService.initIndex();
+const startServer = () => {
+  // 1. Start Express HTTP API server immediately so port 5000 is ALWAYS listening
+  const server = app.listen(config.PORT, () => {
+    logger.info(`ReachInbox Backend API running on port ${config.PORT}`);
+    logger.info(`BullMQ Dashboard available at http://localhost:${config.PORT}/admin/queues`);
+  });
 
-    // Run Queue Recovery to ensure any pending PostgreSQL scheduled jobs exist in BullMQ
-    await QueueRecoveryService.recoverScheduledJobs();
+  // 2. Initialize external infrastructure services non-blockingly
+  setTimeout(async () => {
+    try {
+      await ElasticsearchService.initIndex();
+    } catch (err: any) {
+      logger.warn({ error: err.message }, 'Elasticsearch initialization skipped/failed');
+    }
 
-    // Launch BullMQ Email Worker
-    const worker = createEmailWorker();
-    logger.info({ concurrency: config.WORKER_CONCURRENCY }, 'BullMQ Email Worker initialized and listening for jobs');
+    try {
+      await QueueRecoveryService.recoverScheduledJobs();
+    } catch (err: any) {
+      logger.warn({ error: err.message }, 'Queue recovery check skipped/failed');
+    }
 
-    app.listen(config.PORT, () => {
-      logger.info(`ReachInbox Backend API running on port ${config.PORT}`);
-      logger.info(`BullMQ Dashboard available at http://localhost:${config.PORT}/admin/queues`);
-    });
+    try {
+      const worker = createEmailWorker();
+      logger.info({ concurrency: config.WORKER_CONCURRENCY }, 'BullMQ Email Worker initialized');
 
-    const shutdown = async () => {
-      logger.info('Shutting down server gracefully...');
-      await worker.close();
-      process.exit(0);
-    };
+      const shutdown = async () => {
+        logger.info('Shutting down server gracefully...');
+        try { await worker.close(); } catch {}
+        server.close(() => process.exit(0));
+      };
 
-    process.on('SIGTERM', shutdown);
-    process.on('SIGINT', shutdown);
-  } catch (err: any) {
-    logger.error({ error: err.message }, 'Failed to start backend server');
-    process.exit(1);
-  }
+      process.on('SIGTERM', shutdown);
+      process.on('SIGINT', shutdown);
+    } catch (err: any) {
+      logger.warn({ error: err.message }, 'BullMQ Email Worker creation skipped (using InMemoryQueueService)');
+    }
+  }, 100);
 };
 
 startServer();
