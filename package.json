@@ -1,0 +1,32 @@
+{
+  "name": "reachinbox-email-scheduler-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-grade Full-Stack Email Scheduler with BullMQ, Redis, PostgreSQL, Ethereal SMTP, Elasticsearch, Google & Slack OAuth",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm --workspace=apps/backend run dev",
+    "dev:frontend": "npm --workspace=apps/frontend run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build:shared": "npm --workspace=packages/shared run build",
+    "build:backend": "npm --workspace=apps/backend run build",
+    "build:frontend": "npm --workspace=apps/frontend run build",
+    "build": "npm run build:shared && npm run build:backend && npm run build:frontend",
+    "test:backend": "npm --workspace=apps/backend run test",
+    "test": "npm run test:backend",
+    "typecheck": "npm --workspace=packages/shared run typecheck && npm --workspace=apps/backend run typecheck && npm --workspace=apps/frontend run typecheck",
+    "prisma:generate": "npm --workspace=apps/backend run prisma:generate",
+    "prisma:migrate": "npm --workspace=apps/backend run prisma:migrate",
+    "verify": "npx tsx scripts/verify-system.ts",
+    "load-test": "npx tsx scripts/load-test.ts",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.4.5"
+  }
+}
