@@ -9,7 +9,7 @@ const app = createApp();
 
 const startServer = () => {
   // 1. Start Express HTTP API server immediately so port 5000 is ALWAYS listening
-  const server = app.listen(config.PORT, () => {
+  const server = app.listen(config.PORT, '0.0.0.0', () => {
     logger.info(`ReachInbox Backend API running on port ${config.PORT}`);
     logger.info(`BullMQ Dashboard available at http://localhost:${config.PORT}/admin/queues`);
   });
