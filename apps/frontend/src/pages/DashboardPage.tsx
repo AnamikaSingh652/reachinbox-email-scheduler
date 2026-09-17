@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from '../components/Header';
 import { ComposeModal } from '../components/ComposeModal';
+import { AddSenderModal } from '../components/AddSenderModal';
 import { EmailTable } from '../components/EmailTable';
 import { apiClient } from '../api/client';
 import { ScheduledEmailDTO, SenderDTO, EmailCampaignDTO, EmailStatus } from '@reachinbox/shared';
@@ -15,6 +16,8 @@ import {
   Layers,
   UserCheck,
   Database,
+  UserPlus,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -31,6 +34,7 @@ export const DashboardPage: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [isAddSenderOpen, setIsAddSenderOpen] = useState(false);
   const [reindexing, setReindexing] = useState(false);
 
   // Fetch all dashboard data
@@ -112,6 +116,17 @@ export const DashboardPage: React.FC = () => {
     : activeTab === 'scheduled'
     ? scheduledEmails
     : sentEmails;
+
+  // Handle manual sender deletion
+  const handleDeleteSender = async (senderId: string) => {
+    try {
+      await apiClient.delete(`/senders/${senderId}`);
+      toast.success('Sender deleted successfully');
+      fetchData();
+    } catch (err: any) {
+      toast.error('Failed to delete sender');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -202,54 +217,66 @@ export const DashboardPage: React.FC = () => {
 
         {/* Main Content Tabs */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-            <button
-              onClick={() => setActiveTab('scheduled')}
-              className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 ${
-                activeTab === 'scheduled'
-                  ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              Scheduled Emails ({scheduledEmails.length})
-            </button>
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveTab('scheduled')}
+                className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 ${
+                  activeTab === 'scheduled'
+                    ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                Scheduled Emails ({scheduledEmails.length})
+              </button>
 
-            <button
-              onClick={() => setActiveTab('sent')}
-              className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 ${
-                activeTab === 'sent'
-                  ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <Send className="w-3.5 h-3.5" />
-              Sent Emails ({sentEmails.length})
-            </button>
+              <button
+                onClick={() => setActiveTab('sent')}
+                className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 ${
+                  activeTab === 'sent'
+                    ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                }`}
+              >
+                <Send className="w-3.5 h-3.5" />
+                Sent Emails ({sentEmails.length})
+              </button>
 
-            <button
-              onClick={() => setActiveTab('campaigns')}
-              className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 ${
-                activeTab === 'campaigns'
-                  ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              Campaigns ({campaigns.length})
-            </button>
+              <button
+                onClick={() => setActiveTab('campaigns')}
+                className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 ${
+                  activeTab === 'campaigns'
+                    ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Campaigns ({campaigns.length})
+              </button>
 
-            <button
-              onClick={() => setActiveTab('senders')}
-              className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 ${
-                activeTab === 'senders'
-                  ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              Senders ({senders.length})
-            </button>
+              <button
+                onClick={() => setActiveTab('senders')}
+                className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 ${
+                  activeTab === 'senders'
+                    ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                Senders ({senders.length})
+              </button>
+            </div>
+
+            {activeTab === 'senders' && (
+              <button
+                onClick={() => setIsAddSenderOpen(true)}
+                className="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 rounded-xl border border-slate-700 transition flex items-center gap-1.5"
+              >
+                <UserPlus className="w-3.5 h-3.5 text-brand-400" />
+                Add New Sender
+              </button>
+            )}
           </div>
 
           {/* Tab Views */}
@@ -263,12 +290,23 @@ export const DashboardPage: React.FC = () => {
           ) : activeTab === 'senders' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {senders.map((s) => (
-                <div key={s.id} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-2">
+                <div key={s.id} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-2 relative group">
                   <div className="flex items-center justify-between">
                     <h4 className="font-semibold text-sm text-white">{s.name}</h4>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      Ethereal SMTP
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        Ethereal SMTP
+                      </span>
+                      {senders.length > 1 && (
+                        <button
+                          onClick={() => handleDeleteSender(s.id)}
+                          title="Delete sender"
+                          className="text-slate-500 hover:text-rose-400 p-1 rounded transition opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <p className="text-xs text-slate-400">{s.email}</p>
                   <p className="text-[11px] font-mono text-slate-500 truncate">User: {s.etherealUser}</p>
@@ -301,6 +339,13 @@ export const DashboardPage: React.FC = () => {
       <ComposeModal
         isOpen={isComposeOpen}
         onClose={() => setIsComposeOpen(false)}
+        onSuccess={fetchData}
+      />
+
+      {/* Add Sender Modal */}
+      <AddSenderModal
+        isOpen={isAddSenderOpen}
+        onClose={() => setIsAddSenderOpen(false)}
         onSuccess={fetchData}
       />
     </div>
