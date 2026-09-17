@@ -46,4 +46,12 @@ const startServer = () => {
   }, 100);
 };
 
+process.on('uncaughtException', (err: any) => {
+  logger.warn({ error: err?.message || err }, 'Uncaught exception caught (server process will stay active)');
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  logger.warn({ reason: reason?.message || reason }, 'Unhandled rejection caught (server process will stay active)');
+});
+
 startServer();
